@@ -214,7 +214,8 @@ const App: React.FC = () => {
   }
 
   // Find the active task from the tasks array to ensure we have the latest state
-  const activeTaskForModal = selectedTask ? tasks.find(t => t.id === selectedTask.id) : null;
+  // FIX: Explicitly coalesce undefined to null for strict type safety
+  const activeTaskForModal = selectedTask ? (tasks.find(t => t.id === selectedTask.id) || null) : null;
 
   // Calculate hidden routines for today (Local Time)
   const todayDate = getLocalDateStr();
