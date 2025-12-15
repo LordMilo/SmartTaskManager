@@ -89,7 +89,7 @@ class TTSService {
     let hasStarted = false;
     try {
       if (!process.env.API_KEY) {
-        throw new Error("API Key not found. Please check your deployment environment variables.");
+        throw new Error("Missing API Key. Please add 'API_KEY' to your Vercel/Environment variables.");
       }
 
       const result = await this.ai.models.generateContentStream({
