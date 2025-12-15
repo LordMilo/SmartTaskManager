@@ -73,8 +73,30 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
   
-  // Configs
-  const [googleConfig, setGoogleConfig] = useState({ apiKey: '', clientId: '', sheetId: '' });
+  // Configs - Persist to LocalStorage with Default Keys
+  const [googleConfig, setGoogleConfig] = useState(() => {
+    const defaultKeys = {
+      apiKey: 'AIzaSyBvKW7xVViaXNGyMJ62clb4L_H8N41suQ8',
+      clientId: '994037284744-rl9tl5eq03d16gi67724k0835atlpmh6.apps.googleusercontent.com',
+      sheetId: ''
+    };
+
+    try {
+      const saved = localStorage.getItem('gardenos_google_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Use saved keys if present, otherwise fall back to default provided keys
+        return {
+          apiKey: parsed.apiKey || defaultKeys.apiKey,
+          clientId: parsed.clientId || defaultKeys.clientId,
+          sheetId: parsed.sheetId || ''
+        };
+      }
+      return defaultKeys;
+    } catch { 
+      return defaultKeys; 
+    }
+  });
 
   const t = TRANSLATIONS[lang];
 
@@ -110,6 +132,11 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('gardenos_logs', JSON.stringify(completedRoutineLog));
   }, [completedRoutineLog]);
+  
+  // Auto-save Google Config when it changes
+  useEffect(() => {
+    localStorage.setItem('gardenos_google_config', JSON.stringify(googleConfig));
+  }, [googleConfig]);
 
 
   // Ensure persisted user is in the members list
@@ -148,7 +175,7 @@ const App: React.FC = () => {
           name: m.name,
           role: m.role,
           phoneNumber: m.phone_number,
-          isAdmin: m.is_admin,
+          is_admin: m.is_admin,
           avatar: m.avatar || `https://picsum.photos/seed/${m.id}/200/200`
         }));
         setMembers(mappedMembers);
@@ -470,6 +497,9 @@ const App: React.FC = () => {
   };
 
   const handleConnectGoogle = () => {
+    // Save credentials before connecting
+    localStorage.setItem('gardenos_google_config', JSON.stringify(googleConfig));
+
     googleService.loadGapi(googleConfig.apiKey, googleConfig.clientId, (success) => {
       if (success) {
         googleService.handleAuthClick();
@@ -527,7 +557,7 @@ const App: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-stone-800 dark:text-stone-100 leading-none">Smart Task <span className="text-emerald-600 dark:text-emerald-400">Manager</span></h1>
-            <p className="text-[10px] text-stone-500 dark:text-stone-400 font-medium tracking-wide">SMART TASKER</p>
+            <p className="text-stone-500 dark:text-stone-400 font-medium tracking-wide">SMART TASKER</p>
           </div>
         </div>
 
