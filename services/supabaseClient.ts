@@ -1,11 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-// IMPORTANT: Replace these with your actual Supabase project URL and Anon Key
-// You can find these in your Supabase Dashboard -> Project Settings -> API
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mcftrhvgnzjgikcfjjtg.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jZnRyaHZnbnpqZ2lrY2ZqanRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU3NzQ2MTksImV4cCI6MjA4MTM1MDYxOX0.n7LP22M0MYPa0qwt0BTJyt30pqJKAY7JrIqE1HMKbIQ';
+// Get Environment Variables
+// In Vite/Vercel, these are injected at build time based on your Dashboard settings
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Fallback logic:
+// If keys are missing (e.g., user hasn't set them in Vercel yet),
+// we use a dummy URL to allow createClient to initialize without crashing the app.
+// The actual API calls will fail later, catching the error in App.tsx and switching to "Offline Mode".
+const url = SUPABASE_URL && SUPABASE_URL !== '' ? SUPABASE_URL : 'https://your-project.supabase.co';
+const key = SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== '' ? SUPABASE_ANON_KEY : 'placeholder-key';
+
+export const supabase = createClient(url, key);
 
 // Helper interface for database rows
 export interface DbTask {

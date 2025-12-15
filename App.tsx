@@ -145,9 +145,13 @@ const App: React.FC = () => {
       }
 
     } catch (error) {
-      console.error("Error fetching data from Supabase:", error);
+      // Improved error logging
+      console.warn("Supabase connection failed. Switching to Local/Offline Mode.", error);
       setDbError(true);
-      // If DB fails, fallback to empty arrays or keep existing state if any
+      
+      // Fallback: If we have a user but no data, we are in offline mode. 
+      // Existing local state is empty, so user starts fresh in memory.
+      // In a real PWA we'd use IndexedDB here.
     } finally {
       setIsLoading(false);
     }
@@ -171,15 +175,21 @@ const App: React.FC = () => {
     // Add member to DB if new
     if (!members.find(m => m.id === member.id)) {
       setMembers([...members, member]);
-      // Sync to Supabase
-      await supabase.from('members').insert({
-        id: member.id,
-        name: member.name,
-        role: member.role,
-        phone_number: member.phoneNumber,
-        is_admin: member.isAdmin,
-        avatar: member.avatar
-      });
+      
+      if (!dbError) {
+        try {
+          await supabase.from('members').insert({
+            id: member.id,
+            name: member.name,
+            role: member.role,
+            phone_number: member.phoneNumber,
+            is_admin: member.isAdmin,
+            avatar: member.avatar
+          });
+        } catch (e) {
+          console.warn("Offline: Could not save member to DB");
+        }
+      }
     }
   };
 
@@ -208,15 +218,18 @@ const App: React.FC = () => {
     }));
 
     // DB Update
-    if (updatedTask) {
-      const { error } = await supabase.from('tasks').update({
-        status: newStatus,
-        assignee_id: updatedTask.assigneeId || null
-      }).eq('id', taskId);
+    if (updatedTask && !dbError) {
+      try {
+        const { error } = await supabase.from('tasks').update({
+          status: newStatus,
+          assignee_id: updatedTask.assigneeId || null
+        }).eq('id', taskId);
 
-      if (error) {
-        console.error("Failed to update task status in DB", error);
-        setTasks(oldTasks); // Revert
+        if (error) throw error;
+      } catch (e) {
+        console.error("Offline: Failed to update task status in DB", e);
+        // We do NOT revert state in offline mode, we keep local changes in memory
+        if (!dbError) setDbError(true); 
       }
     }
   };
@@ -225,7 +238,8 @@ const App: React.FC = () => {
     // Optimistic Update
     setTasks(prev => [...prev, newTask]);
 
-    // DB Insert
+    if (dbError) return;
+
     try {
       // 1. Insert Task
       const { error: taskError } = await supabase.from('tasks').insert({
@@ -261,9 +275,8 @@ const App: React.FC = () => {
       }
 
     } catch (err) {
-      console.error("Failed to add task to DB", err);
-      // Remove from UI if failed? Or retry? For now, alert.
-      alert("Failed to save task to database.");
+      console.warn("Offline: Failed to save task to DB", err);
+      setDbError(true);
     }
   };
 
@@ -308,58 +321,79 @@ const App: React.FC = () => {
     ));
 
     // 4. Update Supabase
-    const { error } = await supabase.from('attachments').insert({
-        id: attachment.id,
-        task_id: taskId,
-        type: attachment.type,
-        url: attachment.url, // NOTE: Blobs expire. In Prod, use Supabase Storage public URL
-        name: attachment.name,
-        created_at: attachment.createdAt
-    });
-    
-    if (error) console.error("Failed to save attachment metadata to DB", error);
+    if (!dbError) {
+      try {
+        const { error } = await supabase.from('attachments').insert({
+            id: attachment.id,
+            task_id: taskId,
+            type: attachment.type,
+            url: attachment.url, // NOTE: Blobs expire. In Prod, use Supabase Storage public URL
+            name: attachment.name,
+            created_at: attachment.createdAt
+        });
+        if (error) throw error;
+      } catch (e) {
+        console.warn("Offline: Failed to save attachment metadata to DB");
+      }
+    }
   };
 
   // New Handlers for Team & Routines to support DB sync
   const handleAddMember = async (newMember: Member) => {
     setMembers(prev => [...prev, newMember]);
-    await supabase.from('members').insert({
-      id: newMember.id,
-      name: newMember.name,
-      role: newMember.role,
-      phone_number: newMember.phoneNumber,
-      is_admin: newMember.isAdmin,
-      avatar: newMember.avatar
-    });
+    if (!dbError) {
+      try {
+        await supabase.from('members').insert({
+          id: newMember.id,
+          name: newMember.name,
+          role: newMember.role,
+          phone_number: newMember.phoneNumber,
+          is_admin: newMember.isAdmin,
+          avatar: newMember.avatar
+        });
+      } catch (e) { console.warn("Offline mode"); }
+    }
   };
 
   const handleRemoveMember = async (id: string) => {
     setMembers(prev => prev.filter(m => m.id !== id));
-    await supabase.from('members').delete().eq('id', id);
+    if (!dbError) {
+       try { await supabase.from('members').delete().eq('id', id); } catch(e) {}
+    }
   };
 
   const handleAddRoutine = async (newRoutine: Routine) => {
     setRoutines(prev => [...prev, newRoutine]);
-    await supabase.from('routines').insert({
-      id: newRoutine.id,
-      title: newRoutine.title,
-      description: newRoutine.description,
-      default_priority: newRoutine.defaultPriority
-    });
+    if (!dbError) {
+      try {
+        await supabase.from('routines').insert({
+          id: newRoutine.id,
+          title: newRoutine.title,
+          description: newRoutine.description,
+          default_priority: newRoutine.defaultPriority
+        });
+      } catch (e) { console.warn("Offline mode"); }
+    }
   };
 
   const handleEditRoutine = async (updated: Routine) => {
     setRoutines(prev => prev.map(r => r.id === updated.id ? updated : r));
-    await supabase.from('routines').update({
-       title: updated.title,
-       description: updated.description,
-       default_priority: updated.defaultPriority
-    }).eq('id', updated.id);
+    if (!dbError) {
+      try {
+        await supabase.from('routines').update({
+          title: updated.title,
+          description: updated.description,
+          default_priority: updated.defaultPriority
+        }).eq('id', updated.id);
+      } catch(e) { console.warn("Offline mode"); }
+    }
   };
 
   const handleDeleteRoutine = async (id: string) => {
     setRoutines(prev => prev.filter(r => r.id !== id));
-    await supabase.from('routines').delete().eq('id', id);
+    if (!dbError) {
+       try { await supabase.from('routines').delete().eq('id', id); } catch(e) {}
+    }
   };
 
 
@@ -407,9 +441,9 @@ const App: React.FC = () => {
         <Background />
         <AuthScreen onLogin={handleLogin} existingMembers={members} lang={lang} />
         {dbError && (
-          <div className="fixed bottom-4 left-4 p-4 bg-red-100 text-red-700 rounded-xl border border-red-200 shadow-lg flex items-center gap-2 max-w-sm text-sm z-50">
+          <div className="fixed bottom-4 left-4 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-xl border border-red-200 dark:border-red-800 shadow-lg flex items-center gap-2 max-w-sm text-sm z-50 animate-slide-up">
             <WifiOff size={18} />
-            <p>Could not connect to database. Using offline/local mode.</p>
+            <p>Could not connect to database. Using offline mode.</p>
           </div>
         )}
       </>
