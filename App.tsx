@@ -103,7 +103,7 @@ const App: React.FC = () => {
 
       // Map DB types to App types
       if (membersData) {
-        const mappedMembers: Member[] = membersData.map(m => ({
+        const mappedMembers: Member[] = membersData.map((m: any) => ({
           id: m.id,
           name: m.name,
           role: m.role,
@@ -115,7 +115,7 @@ const App: React.FC = () => {
       }
 
       if (tasksData) {
-        const mappedTasks: Task[] = tasksData.map(t => ({
+        const mappedTasks: Task[] = tasksData.map((t: any) => ({
           id: t.id,
           title: t.title,
           description: t.description,
@@ -135,7 +135,7 @@ const App: React.FC = () => {
       }
 
       if (routinesData) {
-        const mappedRoutines: Routine[] = routinesData.map(r => ({
+        const mappedRoutines: Routine[] = routinesData.map((r: any) => ({
            id: r.id,
            title: r.title,
            description: r.description,
