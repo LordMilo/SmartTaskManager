@@ -70,20 +70,28 @@ class TTSService {
     // We create a promise that resolves as soon as the first audio chunk is scheduled.
     // This allows the UI to stop the "Loading" spinner immediately.
     let resolveFirstChunk: () => void;
-    const firstChunkPromise = new Promise<void>((resolve) => {
+    let rejectFirstChunk: (reason?: any) => void;
+    const firstChunkPromise = new Promise<void>((resolve, reject) => {
         resolveFirstChunk = resolve;
+        rejectFirstChunk = reject;
     });
 
     // Start streaming process in background
-    this.processStream(text, () => {
-        if (resolveFirstChunk) resolveFirstChunk();
-    });
+    this.processStream(text, 
+      () => { if (resolveFirstChunk) resolveFirstChunk(); },
+      (err) => { if (rejectFirstChunk) rejectFirstChunk(err); }
+    );
 
     return firstChunkPromise;
   }
 
-  private async processStream(text: string, onFirstChunk: () => void) {
+  private async processStream(text: string, onFirstChunk: () => void, onError: (err: any) => void) {
+    let hasStarted = false;
     try {
+      if (!process.env.API_KEY) {
+        throw new Error("API Key not found. Please check your deployment environment variables.");
+      }
+
       const result = await this.ai.models.generateContentStream({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
@@ -98,7 +106,6 @@ class TTSService {
         },
       });
 
-      let first = true;
       for await (const chunk of result) {
         if (!this.isPlaying) break;
 
@@ -114,8 +121,8 @@ class TTSService {
             
             this.scheduleBuffer(audioBuffer);
 
-            if (first) {
-                first = false;
+            if (!hasStarted) {
+                hasStarted = true;
                 onFirstChunk();
             }
         }
@@ -123,13 +130,17 @@ class TTSService {
       
       this.streamFinished = true;
       // If loop finished but nothing played (empty response), resolve to unblock UI
-      if (first) onFirstChunk();
+      if (!hasStarted) onFirstChunk();
       this.checkCompletion();
 
     } catch (error) {
       console.error("TTS Streaming Error:", error);
       this.isPlaying = false;
-      onFirstChunk(); // Ensure promise resolves even on error
+      
+      if (!hasStarted) {
+        onError(error); // Reject promise if failed at start
+      }
+      
       if (this.onCompleteCallback) this.onCompleteCallback();
     }
   }

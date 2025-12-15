@@ -54,6 +54,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, members, onMove, onAtt
       setIsSpeaking(true);
     } catch (error) {
       console.error("Failed to speak", error);
+      alert(`TTS Error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsLoadingAudio(false);
     }

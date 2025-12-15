@@ -83,6 +83,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setIsSpeaking(true);
     } catch (error) {
       console.error("Failed to speak details", error);
+      alert(`TTS Error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsLoadingAudio(false);
     }
@@ -254,7 +255,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           playsInline
                         />
                      ) : (
-                        // Removed group-hover:scale-110 animation here
                         <img src={att.url} alt="attachment" className="w-full h-full object-cover" />
                      )}
                      
