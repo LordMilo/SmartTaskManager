@@ -11,28 +11,8 @@ import { AuthScreen } from './components/AuthScreen';
 import { Task, Member, Routine, ViewState, Priority, Status, Language, Attachment } from './types';
 import { generateId, TRANSLATIONS } from './utils';
 import { googleService } from './services/googleService';
-import { Sun, Moon, Settings, Cloud, X, Languages, LogOut, Shield, Database, Save, Loader2, CheckCircle2 } from 'lucide-react';
-
-// --- MOCK DATA ---
-const INITIAL_MEMBERS: Member[] = [
-  { id: '1', name: 'Alice Green', role: 'Head Gardener', phoneNumber: '9999', isAdmin: true, avatar: 'https://picsum.photos/seed/alice/200/200' },
-  { id: '2', name: 'Bob Soil', role: 'Landscaper', phoneNumber: '0812345678', avatar: 'https://picsum.photos/seed/bob/200/200' },
-  { id: '3', name: 'Charlie Leaf', role: 'Botanist', phoneNumber: '0898765432', avatar: 'https://picsum.photos/seed/charlie/200/200' },
-];
-
-const INITIAL_ROUTINES: Routine[] = [
-  { id: 'r1', title: 'Morning Watering', description: 'Water the rose garden and front lawn.', defaultPriority: Priority.URGENT },
-  { id: 'r2', title: 'Weekly Pruning', description: 'Trim hedges and remove dead leaves.', defaultPriority: Priority.NORMAL },
-  { id: 'r3', title: 'Soil Check', description: 'Measure pH levels in vegetable patch.', defaultPriority: Priority.MEDIUM },
-  { id: 'r4', title: 'Compost Turning', description: 'Aerate the compost pile.', defaultPriority: Priority.NORMAL },
-];
-
-const INITIAL_TASKS: Task[] = [
-  // Today's Tasks
-  { id: 't1', title: 'รดน้ำต้นไม้หน้าบ้าน', description: 'รดให้ชุ่ม โดยเฉพาะกระถางแขวนที่ระเบียง', priority: Priority.NORMAL, status: Status.TODO, dueDate: new Date().toISOString().split('T')[0], assigneeId: undefined, attachments: [] },
-  { id: 't2', title: 'ตัดหญ้าสนามหลังบ้าน', description: 'ปรับระดับใบมีดเป็น 2 นิ้ว อย่าลืมเก็บเศษหญ้า', priority: Priority.MEDIUM, status: Status.DOING, dueDate: new Date().toISOString().split('T')[0], assigneeId: '2', attachments: [] },
-  { id: 't3', title: 'ซ่อมก๊อกน้ำรั่ว', description: 'ก๊อกน้ำตรงแปลงผักรั่วซึมมาก ต้องเปลี่ยนวาล์ว', priority: Priority.URGENT, status: Status.TODO, dueDate: new Date().toISOString().split('T')[0], assigneeId: undefined, attachments: [] },
-];
+import { supabase } from './services/supabaseClient';
+import { Sun, Moon, Settings, Cloud, X, Languages, LogOut, Shield, Database, Save, Loader2, CheckCircle2, WifiOff } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('KANBAN');
@@ -50,11 +30,13 @@ const App: React.FC = () => {
 
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [lang, setLang] = useState<Language>('th');
+  const [isLoading, setIsLoading] = useState(true);
+  const [dbError, setDbError] = useState(false);
   
-  // Data State
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
-  const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS);
-  const [routines, setRoutines] = useState<Routine[]>(INITIAL_ROUTINES);
+  // Data State - Start empty, fetch from Supabase
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
   
   // Routine Log State (Tracks {routineId, date})
   const [completedRoutineLog, setCompletedRoutineLog] = useState<{id: string, date: string}[]>([]);
@@ -79,6 +61,7 @@ const App: React.FC = () => {
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setIsDarkMode(true);
     }
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -91,15 +74,84 @@ const App: React.FC = () => {
 
   // Ensure persisted user is in the members list
   useEffect(() => {
-    if (currentUser) {
-      setMembers(prevMembers => {
-        if (!prevMembers.find(m => m.id === currentUser.id)) {
-          return [...prevMembers, currentUser];
-        }
-        return prevMembers;
-      });
+    if (currentUser && members.length > 0) {
+      const exists = members.find(m => m.id === currentUser.id);
+      if (!exists) {
+        setMembers(prev => [...prev, currentUser]);
+      }
     }
-  }, [currentUser]);
+  }, [currentUser, members.length]);
+
+  // --- Supabase Data Fetching ---
+  const fetchData = async () => {
+    setIsLoading(true);
+    setDbError(false);
+    try {
+      // 1. Fetch Members
+      const { data: membersData, error: membersError } = await supabase.from('members').select('*');
+      if (membersError) throw membersError;
+
+      // 2. Fetch Tasks with Attachments
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select(`*, attachments(*)`);
+      if (tasksError) throw tasksError;
+
+      // 3. Fetch Routines
+      const { data: routinesData, error: routinesError } = await supabase.from('routines').select('*');
+      if (routinesError) throw routinesError;
+
+      // Map DB types to App types
+      if (membersData) {
+        const mappedMembers: Member[] = membersData.map(m => ({
+          id: m.id,
+          name: m.name,
+          role: m.role,
+          phoneNumber: m.phone_number,
+          isAdmin: m.is_admin,
+          avatar: m.avatar || `https://picsum.photos/seed/${m.id}/200/200`
+        }));
+        setMembers(mappedMembers);
+      }
+
+      if (tasksData) {
+        const mappedTasks: Task[] = tasksData.map(t => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          priority: t.priority as Priority,
+          status: t.status as Status,
+          dueDate: t.due_date,
+          assigneeId: t.assignee_id || undefined,
+          attachments: t.attachments ? t.attachments.map((a: any) => ({
+            id: a.id,
+            type: a.type,
+            url: a.url,
+            name: a.name,
+            createdAt: a.created_at
+          })) : []
+        }));
+        setTasks(mappedTasks);
+      }
+
+      if (routinesData) {
+        const mappedRoutines: Routine[] = routinesData.map(r => ({
+           id: r.id,
+           title: r.title,
+           description: r.description,
+           defaultPriority: r.default_priority as Priority
+        }));
+        setRoutines(mappedRoutines);
+      }
+
+    } catch (error) {
+      console.error("Error fetching data from Supabase:", error);
+      setDbError(true);
+      // If DB fails, fallback to empty arrays or keep existing state if any
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // --- Helpers ---
   const getLocalDateStr = () => {
@@ -112,13 +164,22 @@ const App: React.FC = () => {
 
   // --- Handlers ---
 
-  const handleLogin = (member: Member) => {
+  const handleLogin = async (member: Member) => {
     setCurrentUser(member);
     localStorage.setItem('gardenos_user', JSON.stringify(member));
     
-    // Add member if new
+    // Add member to DB if new
     if (!members.find(m => m.id === member.id)) {
       setMembers([...members, member]);
+      // Sync to Supabase
+      await supabase.from('members').insert({
+        id: member.id,
+        name: member.name,
+        role: member.role,
+        phone_number: member.phoneNumber,
+        is_admin: member.isAdmin,
+        avatar: member.avatar
+      });
     }
   };
 
@@ -128,32 +189,81 @@ const App: React.FC = () => {
     if (useGDrive) googleService.handleSignOut();
   };
 
-  const handleMoveTask = (taskId: string, newStatus: Status) => {
+  const handleMoveTask = async (taskId: string, newStatus: Status) => {
+    // Optimistic Update
+    const oldTasks = [...tasks];
+    let updatedTask: Task | undefined;
+
     setTasks(prev => prev.map(task => {
       if (task.id !== taskId) return task;
       
       const updates: Partial<Task> = { status: newStatus };
       
-      // Auto-assign logic: If moving to DOING and no assignee, assign to current user
-      // Or if moving FROM Todo TO Doing (Accepting), assign to current user
       if (newStatus === Status.DOING && currentUser) {
          updates.assigneeId = currentUser.id;
       }
       
-      return { ...task, ...updates };
+      updatedTask = { ...task, ...updates };
+      return updatedTask;
     }));
+
+    // DB Update
+    if (updatedTask) {
+      const { error } = await supabase.from('tasks').update({
+        status: newStatus,
+        assignee_id: updatedTask.assigneeId || null
+      }).eq('id', taskId);
+
+      if (error) {
+        console.error("Failed to update task status in DB", error);
+        setTasks(oldTasks); // Revert
+      }
+    }
   };
 
-  const handleAddTask = (newTask: Task) => {
-    // Use functional update to ensure we have latest state
+  const handleAddTask = async (newTask: Task) => {
+    // Optimistic Update
     setTasks(prev => [...prev, newTask]);
-    // Optionally sync
-    if (useGDrive && googleConfig.sheetId) {
-       setTasks(prev => {
-         const updated = [...prev, newTask];
-         if (useGDrive && googleConfig.sheetId) syncToSheets(updated);
-         return updated;
-       });
+
+    // DB Insert
+    try {
+      // 1. Insert Task
+      const { error: taskError } = await supabase.from('tasks').insert({
+        id: newTask.id,
+        title: newTask.title,
+        description: newTask.description,
+        priority: newTask.priority,
+        status: newTask.status,
+        due_date: newTask.dueDate,
+        assignee_id: newTask.assigneeId || null
+      });
+      if (taskError) throw taskError;
+
+      // 2. Insert Attachments if any
+      if (newTask.attachments.length > 0) {
+        const { error: attError } = await supabase.from('attachments').insert(
+          newTask.attachments.map(a => ({
+            id: a.id,
+            task_id: newTask.id,
+            type: a.type,
+            url: a.url, // Note: For production, upload to Storage and use that URL
+            name: a.name,
+            created_at: a.createdAt
+          }))
+        );
+        if (attError) throw attError;
+      }
+
+      // Sync to sheets if enabled
+      if (useGDrive && googleConfig.sheetId) {
+         const updated = [...tasks, newTask];
+         syncToSheets(updated);
+      }
+
+    } catch (err) {
+      console.error("Failed to add task to DB", err);
+      // Remove from UI if failed? Or retry? For now, alert.
+      alert("Failed to save task to database.");
     }
   };
 
@@ -165,19 +275,22 @@ const App: React.FC = () => {
   };
 
   const handleAttachProof = async (taskId: string, file: File) => {
+    // 1. Create Attachment Object
     let attachment: Attachment = {
        id: generateId(),
        type: file.type.startsWith('video') ? 'video' : 'image',
-       url: URL.createObjectURL(file), // Default local preview
+       url: URL.createObjectURL(file), // Local preview
        name: file.name,
        createdAt: new Date().toISOString()
     };
 
+    // 2. Handle Google Drive Upload (Legacy logic preserved)
     if (useGDrive) {
       try {
         setIsSyncing(true);
         const driveData = await googleService.uploadFile(file);
-        attachment.url = URL.createObjectURL(file); // Keep local blob for immediate speed
+        // For DB persistence, ideally we'd use the Drive Link or upload to Supabase Storage
+        // For now, we'll keep the logic but maybe store the preview URL or Drive link if we updated Attachment type
         console.log("Uploaded to Drive:", driveData);
       } catch (err) {
         console.error("Upload failed", err);
@@ -187,12 +300,68 @@ const App: React.FC = () => {
       }
     }
 
+    // 3. Update Local State
     setTasks(prev => prev.map(t => 
        t.id === taskId 
        ? { ...t, attachments: [...t.attachments, attachment] }
        : t
     ));
+
+    // 4. Update Supabase
+    const { error } = await supabase.from('attachments').insert({
+        id: attachment.id,
+        task_id: taskId,
+        type: attachment.type,
+        url: attachment.url, // NOTE: Blobs expire. In Prod, use Supabase Storage public URL
+        name: attachment.name,
+        created_at: attachment.createdAt
+    });
+    
+    if (error) console.error("Failed to save attachment metadata to DB", error);
   };
+
+  // New Handlers for Team & Routines to support DB sync
+  const handleAddMember = async (newMember: Member) => {
+    setMembers(prev => [...prev, newMember]);
+    await supabase.from('members').insert({
+      id: newMember.id,
+      name: newMember.name,
+      role: newMember.role,
+      phone_number: newMember.phoneNumber,
+      is_admin: newMember.isAdmin,
+      avatar: newMember.avatar
+    });
+  };
+
+  const handleRemoveMember = async (id: string) => {
+    setMembers(prev => prev.filter(m => m.id !== id));
+    await supabase.from('members').delete().eq('id', id);
+  };
+
+  const handleAddRoutine = async (newRoutine: Routine) => {
+    setRoutines(prev => [...prev, newRoutine]);
+    await supabase.from('routines').insert({
+      id: newRoutine.id,
+      title: newRoutine.title,
+      description: newRoutine.description,
+      default_priority: newRoutine.defaultPriority
+    });
+  };
+
+  const handleEditRoutine = async (updated: Routine) => {
+    setRoutines(prev => prev.map(r => r.id === updated.id ? updated : r));
+    await supabase.from('routines').update({
+       title: updated.title,
+       description: updated.description,
+       default_priority: updated.defaultPriority
+    }).eq('id', updated.id);
+  };
+
+  const handleDeleteRoutine = async (id: string) => {
+    setRoutines(prev => prev.filter(r => r.id !== id));
+    await supabase.from('routines').delete().eq('id', id);
+  };
+
 
   const syncToSheets = async (currentTasks: Task[]) => {
     if (!googleConfig.sheetId) return;
@@ -221,11 +390,28 @@ const App: React.FC = () => {
     });
   };
 
+  // --- Loading Screen ---
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-stone-50 dark:bg-stone-950 gap-4">
+        <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-stone-500 font-medium animate-pulse">Connecting to Database...</p>
+      </div>
+    );
+  }
+
+  // --- Login Screen ---
   if (!currentUser) {
     return (
       <>
         <Background />
         <AuthScreen onLogin={handleLogin} existingMembers={members} lang={lang} />
+        {dbError && (
+          <div className="fixed bottom-4 left-4 p-4 bg-red-100 text-red-700 rounded-xl border border-red-200 shadow-lg flex items-center gap-2 max-w-sm text-sm z-50">
+            <WifiOff size={18} />
+            <p>Could not connect to database. Using offline/local mode.</p>
+          </div>
+        )}
       </>
     );
   }
@@ -289,8 +475,8 @@ const App: React.FC = () => {
           {currentView === 'TEAM' && (
             <TeamManager 
               members={members} 
-              onAddMember={(m) => setMembers([...members, m])} 
-              onRemoveMember={(id) => setMembers(prev => prev.filter(m => m.id !== id))}
+              onAddMember={handleAddMember} 
+              onRemoveMember={handleRemoveMember}
               lang={lang}
               currentUser={currentUser}
             />
@@ -300,9 +486,9 @@ const App: React.FC = () => {
                routines={routines}
                currentUser={currentUser}
                onActivate={handleRoutineStart}
-               onAddRoutine={(r) => setRoutines([...routines, r])}
-               onEditRoutine={(r) => setRoutines(prev => prev.map(item => item.id === r.id ? r : item))}
-               onDeleteRoutine={(id) => setRoutines(prev => prev.filter(r => r.id !== id))}
+               onAddRoutine={handleAddRoutine}
+               onEditRoutine={handleEditRoutine}
+               onDeleteRoutine={handleDeleteRoutine}
                lang={lang}
                hiddenRoutineIds={hiddenRoutineIds}
              />
