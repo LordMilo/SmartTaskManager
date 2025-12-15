@@ -36,7 +36,18 @@ const INITIAL_TASKS: Task[] = [
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('KANBAN');
-  const [currentUser, setCurrentUser] = useState<Member | null>(null);
+  
+  // Persistent Login State Initialization
+  const [currentUser, setCurrentUser] = useState<Member | null>(() => {
+    try {
+      const savedUser = localStorage.getItem('gardenos_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      console.error("Failed to parse user from storage", e);
+      return null;
+    }
+  });
+
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [lang, setLang] = useState<Language>('th');
   
@@ -78,6 +89,18 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
+  // Ensure persisted user is in the members list
+  useEffect(() => {
+    if (currentUser) {
+      setMembers(prevMembers => {
+        if (!prevMembers.find(m => m.id === currentUser.id)) {
+          return [...prevMembers, currentUser];
+        }
+        return prevMembers;
+      });
+    }
+  }, [currentUser]);
+
   // --- Helpers ---
   const getLocalDateStr = () => {
     const d = new Date();
@@ -91,6 +114,8 @@ const App: React.FC = () => {
 
   const handleLogin = (member: Member) => {
     setCurrentUser(member);
+    localStorage.setItem('gardenos_user', JSON.stringify(member));
+    
     // Add member if new
     if (!members.find(m => m.id === member.id)) {
       setMembers([...members, member]);
@@ -99,6 +124,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    localStorage.removeItem('gardenos_user');
     if (useGDrive) googleService.handleSignOut();
   };
 
@@ -123,10 +149,6 @@ const App: React.FC = () => {
     setTasks(prev => [...prev, newTask]);
     // Optionally sync
     if (useGDrive && googleConfig.sheetId) {
-       // Note: syncToSheets uses 'tasks' from state which might be stale in this specific closure 
-       // but for simulation it is acceptable, or we can pass prev+newTask.
-       // For safety in this demo, we'll sync the next render or accept slight delay.
-       // Better:
        setTasks(prev => {
          const updated = [...prev, newTask];
          if (useGDrive && googleConfig.sheetId) syncToSheets(updated);
@@ -155,12 +177,7 @@ const App: React.FC = () => {
       try {
         setIsSyncing(true);
         const driveData = await googleService.uploadFile(file);
-        // Use webContentLink for download/access, or webViewLink for viewing
-        // Note: For simple `img src`, Drive links require specific formatting or public access.
-        // For this demo, we might keep the objectURL for immediate display 
-        // but store the Drive ID/Link in the task data.
         attachment.url = URL.createObjectURL(file); // Keep local blob for immediate speed
-        // In a real app, you'd save the driveData.webViewLink
         console.log("Uploaded to Drive:", driveData);
       } catch (err) {
         console.error("Upload failed", err);
@@ -214,7 +231,6 @@ const App: React.FC = () => {
   }
 
   // Find the active task from the tasks array to ensure we have the latest state
-  // FIX: Explicitly coalesce undefined to null for strict type safety
   const activeTaskForModal = selectedTask ? (tasks.find(t => t.id === selectedTask.id) || null) : null;
 
   // Calculate hidden routines for today (Local Time)
@@ -230,11 +246,11 @@ const App: React.FC = () => {
       {/* Top Bar */}
       <header className="flex-none p-4 flex items-center justify-between z-10 animate-slide-up">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-lime-500 rounded-xl shadow-lg flex items-center justify-center text-white font-bold text-xl">
-             G
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-lime-500 rounded-xl shadow-lg flex items-center justify-center text-white font-bold text-sm">
+             STM
           </div>
           <div>
-            <h1 className="text-xl font-bold text-stone-800 dark:text-stone-100 leading-none">Garden<span className="text-emerald-600 dark:text-emerald-400">OS</span></h1>
+            <h1 className="text-xl font-bold text-stone-800 dark:text-stone-100 leading-none">Smart Task <span className="text-emerald-600 dark:text-emerald-400">Manager</span></h1>
             <p className="text-[10px] text-stone-500 dark:text-stone-400 font-medium tracking-wide">SMART TASKER</p>
           </div>
         </div>

@@ -1,6 +1,6 @@
 {
-  "name": "GardenOS: Smart Garden Tasker",
-  "description": "A glassmorphic, nature-themed task management system for smart gardening teams featuring Kanban boards, photo proofs, and routine automation.",
+  "name": "Smart Task Manager",
+  "description": "A glassmorphic, nature-themed task management system featuring Kanban boards, photo proofs, and routine automation.",
   "requestFramePermissions": [
     "camera"
   ]

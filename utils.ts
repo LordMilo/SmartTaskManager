@@ -123,7 +123,7 @@ export const TRANSLATIONS = {
     close: "Close",
 
     // Auth
-    welcome: "Welcome to GardenOS",
+    welcome: "Welcome to Smart Task Manager",
     loginSubtitle: "Sign in with your name and phone number",
     phoneNumber: "Phone Number",
     login: "Login / Register",
@@ -239,7 +239,7 @@ export const TRANSLATIONS = {
     close: "ปิด",
 
     // Auth
-    welcome: "ยินดีต้อนรับสู่ GardenOS",
+    welcome: "ยินดีต้อนรับสู่ Smart Task Manager",
     loginSubtitle: "เข้าสู่ระบบด้วยชื่อและเบอร์โทรศัพท์",
     phoneNumber: "เบอร์โทรศัพท์",
     login: "เข้าสู่ระบบ / ลงทะเบียน",

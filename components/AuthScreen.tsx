@@ -62,7 +62,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, existingMembers
            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-lime-500 rounded-2xl shadow-lg flex items-center justify-center text-white mb-4">
               <Sprout size={32} />
            </div>
-           <h1 className="text-2xl font-bold text-stone-800 dark:text-stone-100">Garden<span className="text-emerald-600 dark:text-emerald-400">OS</span></h1>
+           <h1 className="text-2xl font-bold text-stone-800 dark:text-stone-100">Smart Task <span className="text-emerald-600 dark:text-emerald-400">Manager</span></h1>
            <p className="text-stone-500 dark:text-stone-400 text-sm mt-1">{t.loginSubtitle}</p>
          </div>
 
