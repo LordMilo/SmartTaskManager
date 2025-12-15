@@ -14,10 +14,11 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       // Explicitly stringify the environment variables to ensure they are replaced at build time
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
-      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || process.env.SUPABASE_URL),
-      'process.env.SUPABASE_KEY': JSON.stringify(env.SUPABASE_KEY || process.env.SUPABASE_KEY),
-      // Fallback for other process.env usage if necessary (less safe, but compatible with some libs)
+      // Check both API_KEY and VITE_API_KEY to be helpful
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || env.VITE_API_KEY || process.env.API_KEY || process.env.VITE_API_KEY || ''),
+      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || process.env.SUPABASE_URL || ''),
+      'process.env.SUPABASE_KEY': JSON.stringify(env.SUPABASE_KEY || process.env.SUPABASE_KEY || ''),
+      // Fallback for other process.env usage
       'process.env': JSON.stringify({})
     }
   }

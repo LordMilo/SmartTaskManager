@@ -41,8 +41,11 @@ class TTSService {
   private onCompleteCallback: (() => void) | null = null;
 
   constructor() {
-    // API Key must be obtained exclusively from process.env.API_KEY per guidelines
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    const apiKey = process.env.API_KEY || '';
+    // Debug log to help user verify key presence (masked)
+    console.log("TTS Service Init. API Key present:", !!apiKey, apiKey ? `(Length: ${apiKey.length})` : "(Empty)");
+    
+    this.ai = new GoogleGenAI({ apiKey: apiKey });
   }
 
   // Modified to return a Promise that resolves when the FIRST chunk is ready (low latency)
@@ -89,7 +92,7 @@ class TTSService {
     let hasStarted = false;
     try {
       if (!process.env.API_KEY) {
-        throw new Error("Missing API Key. Please add 'API_KEY' to your Vercel/Environment variables.");
+        throw new Error("Missing API Key. Please add 'API_KEY' (or 'VITE_API_KEY') to your Vercel Environment Variables and redeploy.");
       }
 
       const result = await this.ai.models.generateContentStream({
