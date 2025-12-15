@@ -90,7 +90,7 @@ export class GoogleService {
   }
 
   // --- DRIVE UPLOAD ---
-  public async uploadFile(file: File): Promise<{ id: string, webContentLink: string, webViewLink: string }> {
+  public async uploadFile(file: File): Promise<{ id: string, url: string, name: string }> {
      if (!this.accessToken) {
         // Try to get token if gapi has it
         const gapiToken = (window as any).gapi.client.getToken();
@@ -101,14 +101,14 @@ export class GoogleService {
      const metadata = {
        'name': file.name,
        'mimeType': file.type,
-       // Optional: 'parents': ['FOLDER_ID'] 
      };
 
      const form = new FormData();
      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
      form.append('file', file);
 
-     const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webContentLink,webViewLink', {
+     // Request fields: id and thumbnailLink (which works better for embedding images than webContentLink)
+     const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,thumbnailLink', {
        method: 'POST',
        headers: new Headers({ 'Authorization': 'Bearer ' + this.accessToken }),
        body: form
@@ -118,7 +118,22 @@ export class GoogleService {
        throw new Error(`Drive Upload Failed: ${response.statusText}`);
      }
 
-     return await response.json();
+     const data = await response.json();
+     
+     // Construct a usable URL
+     // data.thumbnailLink usually comes small (e.g. =s220). We replace it to get a larger image.
+     let displayUrl = data.webViewLink; // Default fallback to the drive viewer
+     
+     if (file.type.startsWith('image/') && data.thumbnailLink) {
+        // Replace size param to get high-res image for <img> tag
+        displayUrl = data.thumbnailLink.replace(/=s\d+$/, '=s4000'); 
+     }
+
+     return {
+         id: data.id,
+         url: displayUrl,
+         name: file.name
+     };
   }
 
   // --- SHEETS SYNC ---
